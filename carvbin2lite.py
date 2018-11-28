@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Script en Python 3.7 
 # Carving de bbdd SQLite3, busqueda y extraccion de los archivos.
 # No confundir con obtener datos borrados dentro de la bbdd
