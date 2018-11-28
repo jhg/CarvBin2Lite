@@ -1,7 +1,10 @@
+#!/usr/bin/env python3
 # Script en Python 3.7 
 # Carving de bbdd SQLite3, busqueda y extraccion de los archivos.
 # No confundir con obtener datos borrados dentro de la bbdd
 # 
+
+import sys
 
 
 sqlhead = ("53", "514c69746520666f726d6174203300")
@@ -100,12 +103,12 @@ def contr_integridad(inicio):
 
 
 
-if __name__ == "__main__":
+def main(argv):
         # abrimos archivo en modo lectura binario
         # calculamos longitud y establecemos variables de control
 
         # arch = open("corta.dd", "rb")
-        arch = open("eepc.001", "rb")
+        arch = open(argv[0], "rb")
         lenar = arch.seek(0,2) 
         #arch.seek(0)
         print("Longitud de archivo", lenar)# depuracion
@@ -133,3 +136,10 @@ if __name__ == "__main__":
 
 
         arch.close()
+
+if __name__ == "__main__":
+        _script_argv = sys.argv[1:]
+        if len(_script_argv) == 0:
+                print("Usage: %s filename" % (sys.argv[0]))
+        else:
+                main(_script_argv)
