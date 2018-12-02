@@ -4,6 +4,8 @@
 # No confundir con obtener datos borrados dentro de la bbdd
 # 
 
+from io import DEFAULT_BUFFER_SIZE
+
 import sys
 
 
@@ -25,7 +27,7 @@ def saca_bin(arch, inicio, dato):
         global i
         print('Vamos a sacar los datos de la posicion', inicio)
         nombre = str(inicio)+'.db'
-        f = open(nombre,"wb")
+        f = open(nombre, "wb", buffering=min(dato, 67108864))
         arch.seek(inicio)
         print("Datos pasados, inicio", inicio, "y dato", dato) 
         conte = arch.read(dato)
@@ -102,45 +104,47 @@ def contr_integridad(arch, lenar, inicio):
                 print("Compuébela con un editor hex")
 
 
+def carving_file(filename):
+    sqlite_head = b"\x53\x51\x4c\x69\x74\x65\x20\x66\x6f\x72\x6d\x61\x74\x20\x33\x00"
+    buffer_size = max(DEFAULT_BUFFER_SIZE, 134217728)
+    with open(filename, "rb", buffering=buffer_size) as source_file:
+        # TODO: this block and child blocks need refactor
+        lenar = source_file.seek(0,2)
+        source_file.seek(0)
+        print("Longitud de archivo", lenar)  # depuracion
+        buffer_bytes = source_file.read(buffer_size)
+        while len(buffer_bytes) > 15:
+            next_buffer_offset = source_file.tell()
+            if len(buffer_bytes) < buffer_size:
+                buffer_size = len(buffer_bytes)
+                print(buffer_size)
+            sqlite_found_offset = -1
+            # Index is relative to buffer read
+            sqlite_head_index = buffer_bytes.find(sqlite_head)
+            # Find all offsets in buffer
+            while sqlite_head_index > -1:
+                # Calculate offset relative to file
+                sqlite_found_offset = source_file.tell() - buffer_size + sqlite_head_index
+                print("Sqlite found at ", sqlite_found_offset)
+                # TODO: this need refactor, optimization work continue here
+                global i
+                i = sqlite_found_offset
+                print("Comprobando integridad de la SQLite:")
+                contr_integridad(source_file, lenar, i)
+                print("------------------------")
+                sqlite_head_index = buffer_bytes.find(sqlite_head, sqlite_head_index+1)
+            # Continue reading next buffer
+            source_file.seek(next_buffer_offset-len(sqlite_head)+1)
+            buffer_bytes = source_file.read(buffer_size)
 
-def main(argv):
-        # abrimos archivo en modo lectura binario
-        # calculamos longitud y establecemos variables de control
 
-        # arch = open("corta.dd", "rb")
-        arch = open(argv[0], "rb")
-        lenar = arch.seek(0,2) 
-        #arch.seek(0)
-        print("Longitud de archivo", lenar)# depuracion
-        
-# recorre el archivo byte a byte y lo compara
-        
-        global i
-        i = 0
-        arch.seek(i)
-        while i < lenar:
-                # print("Leyendo pos", arch.tell()) 
-                dato = arch.read(1).hex()
-                # print ("lectura", dato)
-                if dato in sqlhead[0]:
-                        carch = arch.tell()
-                        dato2 = arch.read(15).hex()
-                        arch.seek(carch)
-                        if dato2 in sqlhead[1]:
-                                print("Encontrada cabecera en posicion", i, sqlhead[0],sqlhead[1])
-                                print("Comprobando integridad de la SQLite:")
-                                contr_integridad(arch, lenar, i)
-                                print("------------------------")
-                                arch.seek(i+1)
-                
-                i+=1
+def main(*argv, **kargv):
+    carving_file(argv[0])
 
-
-        arch.close()
 
 if __name__ == "__main__":
         _script_argv = sys.argv[1:]
         if len(_script_argv) == 0:
                 print("Usage: %s filename" % (sys.argv[0]))
         else:
-                main(_script_argv)
+                main(*_script_argv)
