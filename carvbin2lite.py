@@ -21,7 +21,7 @@ longarch = 4  # control de la longitud en bytes del archivo, en pruebas fijo
 
 
 # funcion para extraer los datos una vez encontrados
-def saca_bin(inicio, dato):
+def saca_bin(arch, inicio, dato):
         global i
         print('Vamos a sacar los datos de la posicion', inicio)
         nombre = str(inicio)+'.db'
@@ -37,7 +37,7 @@ def saca_bin(inicio, dato):
 
 
 # funcion para obtener la longitud de la sqlite
-def longi_sql(inicio, tama):
+def longi_sql(arch, lenar, inicio, tama):
         # comprobamos si el tamaño es 1 y asignamos valor real
         if tama == 1:
                 itama = 65536
@@ -60,11 +60,11 @@ def longi_sql(inicio, tama):
         if cont_tam > 0 and itama != 0:
                 
                 # mandamos sacar a archivo
-                saca_bin(inicio, datos)
+                saca_bin(arch, inicio, datos)
                 
         
 
-def contr_integridad(inicio):
+def contr_integridad(arch, lenar, inicio):
         # Comprobamos tamaño de pagina correcto 512-32768 o 65536
         arch.seek(inicio + 16)
         tpag = arch.read(2).hex()
@@ -96,7 +96,7 @@ def contr_integridad(inicio):
         # y podemos extraerla
         if bool(cia) and bool(cib) and bool(cic):
                 print("SQLite correcta, procedemos a extraer")
-                longi_sql(inicio, tpag)
+                longi_sql(arch, lenar, inicio, tpag)
         else:
                 print("Parece que la SQLite en posicion", inicio, "está corrupta")
                 print("Compuébela con un editor hex")
@@ -115,6 +115,7 @@ def main(argv):
         
 # recorre el archivo byte a byte y lo compara
         
+        global i
         i = 0
         arch.seek(i)
         while i < lenar:
@@ -128,7 +129,7 @@ def main(argv):
                         if dato2 in sqlhead[1]:
                                 print("Encontrada cabecera en posicion", i, sqlhead[0],sqlhead[1])
                                 print("Comprobando integridad de la SQLite:")
-                                contr_integridad(i)
+                                contr_integridad(arch, lenar, i)
                                 print("------------------------")
                                 arch.seek(i+1)
                 
