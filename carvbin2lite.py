@@ -4,142 +4,127 @@
 # No confundir con obtener datos borrados dentro de la bbdd
 # 
 
+from io import DEFAULT_BUFFER_SIZE
+
 import sys
 
 
-sqlhead = ("53", "514c69746520666f726d6174203300")
-# cabecera del archivo y longitud
-LENSH = 2
-posi = []
-pos = 0  # control de posicion 
-pot = 0  # control de posicion en la tupla
-logro = 0  # control de la cantidad de archivos encontrados
-inic = 0
-
-longarch = 4  # control de la longitud en bytes del archivo, en pruebas fijo
-
-
-
-# funcion para extraer los datos una vez encontrados
-def saca_bin(inicio, dato):
-        global i
-        print('Vamos a sacar los datos de la posicion', inicio)
-        nombre = str(inicio)+'.db'
-        f = open(nombre,"wb")
-        arch.seek(inicio)
-        print("Datos pasados, inicio", inicio, "y dato", dato) 
-        conte = arch.read(dato)
-        f.write(conte)
-        f.close()
-        print(f"SQLite {nombre} extraída satisfactoriamente, creo ;)")
-        #damos a i el valor del final del archivo a extraer
-        i = i + dato
+def extract_length(input_file, offset):
+    """Get SQLite length and check it"""
+    db_size = None
+    # Comprobamos tamaño de pagina correcto 512-32768 o 65536
+    input_file.seek(offset + 16)
+    page_size = int.from_bytes(input_file.read(2), 'big')
+    if (page_size > 511 and page_size < 32769) or page_size == 1:
+        print("SQLite page size value", page_size, "within the ranges")
+        # Set real size when page size is 1
+        if page_size == 1:
+            page_size = 65536
+        # obtenemos numero de paginas
+        input_file.seek(offset+28)
+        total_pages = int.from_bytes(input_file.read(4), 'big')
+        if total_pages != 0:
+            # calculamos tamaño archivo
+            db_size = page_size * total_pages
+            print("DB page size:", page_size)
+            print("DB pages:", total_pages)
+            print("DB file size:", db_size)
+    return db_size
 
 
-# funcion para obtener la longitud de la sqlite
-def longi_sql(inicio, tama):
-        # comprobamos si el tamaño es 1 y asignamos valor real
-        if tama == 1:
-                itama = 65536
-        else:
-                itama = int(tama, 16)
-
-        # obtenemos numero de hojas
-        arch.seek(inicio+28)
-        pags = arch.read(4).hex()
-        
-        # calculamos tamaño archivo
-        # itama = int(tama,16)
-        ipags = int(pags,16)
-        datos = itama * ipags
-        print("Tamaño de página:",itama,", número de páginas:",ipags)
-        print("tamaño de los datos", datos)
-        
-        # comprobamos que el tamaño no es mayor que el contenedor
-        cont_tam = lenar - datos
-        if cont_tam > 0 and itama != 0:
-                
-                # mandamos sacar a archivo
-                saca_bin(inicio, datos)
-                
-        
-
-def contr_integridad(inicio):
-        # Comprobamos tamaño de pagina correcto 512-32768 o 65536
-        arch.seek(inicio + 16)
-        tpag = arch.read(2).hex()
-        if (int(tpag, 16) > 511 and int(tpag, 16) < 32769) or int(tpag, 16) == 1:
-                print("Tamaño de la SQLite", tpag, "dentro de los rangos")
-                cia = 1
-        else:
-                cia = 0
-
-        # Control de la versión
-        arch.seek(inicio + 96)
-        nver = arch.read(4).hex()
-        nveri = int(nver, 16)
-        if str(nveri)[0:1] == "3":
-                print("Versión de la SQLite", str(nveri)[0:1] + "." + str(nveri)[2:4] + "." +str(nveri)[5:7])
-                cib = 1
-        else:
-                cib = 0
-
-        # control de offset 72 a 92 que sean zeros
-        arch.seek(inicio + 72)
-        roff = arch.read(20).hex()
-        if bool(int(roff,16)):
-                cic = 0
-        else:
-                cic = 1
-        
-        # Si cia y cib son verdaderas, se supone que la sqlite está correcta
-        # y podemos extraerla
-        if bool(cia) and bool(cib) and bool(cic):
-                print("SQLite correcta, procedemos a extraer")
-                longi_sql(inicio, tpag)
-        else:
-                print("Parece que la SQLite en posicion", inicio, "está corrupta")
-                print("Compuébela con un editor hex")
+def check_null_bytes(input_file, offset):
+    """Check from offset+72 to offset+92 all bytes are 0x00"""
+    input_file.seek(offset + 72)
+    return not max(input_file.read(20))
 
 
-
-def main(argv):
-        # abrimos archivo en modo lectura binario
-        # calculamos longitud y establecemos variables de control
-
-        # arch = open("corta.dd", "rb")
-        arch = open(argv[0], "rb")
-        lenar = arch.seek(0,2) 
-        #arch.seek(0)
-        print("Longitud de archivo", lenar)# depuracion
-        
-# recorre el archivo byte a byte y lo compara
-        
-        i = 0
-        arch.seek(i)
-        while i < lenar:
-                # print("Leyendo pos", arch.tell()) 
-                dato = arch.read(1).hex()
-                # print ("lectura", dato)
-                if dato in sqlhead[0]:
-                        carch = arch.tell()
-                        dato2 = arch.read(15).hex()
-                        arch.seek(carch)
-                        if dato2 in sqlhead[1]:
-                                print("Encontrada cabecera en posicion", i, sqlhead[0],sqlhead[1])
-                                print("Comprobando integridad de la SQLite:")
-                                contr_integridad(i)
-                                print("------------------------")
-                                arch.seek(i+1)
-                
-                i+=1
+def check_version(input_file, offset):
+    """Check SQLite version"""
+    version_is_correct = False
+    input_file.seek(offset + 96)
+    version_number_string = str(int.from_bytes(input_file.read(4), 'big'))
+    version_components = (
+        version_number_string[0:1].lstrip('0'),
+        version_number_string[2:4].lstrip('0'),
+        version_number_string[5:7].lstrip('0')
+        )
+    if version_components[0] == "3":
+        print("SQLite version", ".".join(version_components))
+        version_is_correct = True
+    return version_is_correct
 
 
-        arch.close()
+def extract_bin(input_file, offset, db_size):
+    """Extract SQLite file with offset and size"""
+    print(f"Extracting offset {offset} size {db_size}")
+    db_file_name = str(offset) + '.db'
+    buffer_size = min(db_size, DEFAULT_BUFFER_SIZE)
+    # Open file where to copy SQLite file
+    with open(db_file_name, "wb", buffering=buffer_size) as db_file:
+        # Move to offset and start extraction
+        input_file.seek(offset)
+        remain_to_copy = db_size
+        while remain_to_copy > 0:
+            buffer_bytes = input_file.read(min(buffer_size, remain_to_copy))
+            db_file.write(buffer_bytes)
+            remain_to_copy = remain_to_copy - len(buffer_bytes)
+        print(f"SQLite {db_file_name} extraída satisfactoriamente, creo ;)")
+
+
+def check_and_extract(input_file, input_file_size, offset):
+    # Get and check db size (it moves to offset+16 and offset+28)
+    db_size = extract_length(input_file, offset)
+    if db_size is not None and (offset + db_size) < input_file_size:
+        # Check from offset+72 to offset+92 all bytes are 0x00
+        # And check version (it moves to offset+96)
+        if check_null_bytes(input_file, offset) and check_version(input_file, offset):
+            # Extract SQLite (it moves to offset)
+            extract_bin(input_file, offset, db_size)
+            # As it has been extracted return
+            return
+    # If not return before then it has not been extracted
+    print("Parece que la SQLite en posicion", offset, "está corrupta")
+    print("Compuébela con un editor hex")
+
+
+def carving_file(filename):
+    sqlite_head = b"\x53\x51\x4c\x69\x74\x65\x20\x66\x6f\x72\x6d\x61\x74\x20\x33\x00"
+    buffer_size = max(DEFAULT_BUFFER_SIZE, 134217728)
+    with open(filename, "rb", buffering=buffer_size) as source_file:
+        # TODO: this block and child blocks need refactor
+        input_file_size = source_file.seek(0,2)
+        source_file.seek(0)
+        print("Longitud de archivo", input_file_size)  # depuracion
+        buffer_bytes = source_file.read(buffer_size)
+        while len(buffer_bytes) > 15:
+            next_buffer_offset = source_file.tell()
+            if len(buffer_bytes) < buffer_size:
+                buffer_size = len(buffer_bytes)
+                print(buffer_size)
+            sqlite_found_offset = -1
+            # Index is relative to buffer read
+            sqlite_head_index = buffer_bytes.find(sqlite_head)
+            # Find all offsets in buffer
+            while sqlite_head_index > -1:
+                # Calculate offset relative to file
+                sqlite_found_offset = source_file.tell() - buffer_size + sqlite_head_index
+                print("Sqlite found at ", sqlite_found_offset)
+                print("Comprobando integridad de la SQLite:")
+                check_and_extract(source_file, input_file_size, sqlite_found_offset)
+                print("------------------------")
+                sqlite_head_index = buffer_bytes.find(sqlite_head, sqlite_head_index+1)
+            # Continue reading next buffer
+            source_file.seek(next_buffer_offset-len(sqlite_head)+1)
+            buffer_bytes = source_file.read(buffer_size)
+
+
+def main(*argv, **kargv):
+    carving_file(argv[0])
+
 
 if __name__ == "__main__":
         _script_argv = sys.argv[1:]
         if len(_script_argv) == 0:
                 print("Usage: %s filename" % (sys.argv[0]))
         else:
-                main(_script_argv)
+                main(*_script_argv)
