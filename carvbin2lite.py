@@ -6,7 +6,15 @@
 
 from io import DEFAULT_BUFFER_SIZE
 
-import sys
+import sys, os
+
+from argparse import ArgumentParser
+
+parser = ArgumentParser(description="Find and extract SQLite files from binary forensics files",
+                         epilog='That\'s all folks!!!')
+parser.add_argument('-e', '-extract', action='store_true',
+                    default='', help='Use to extract found files')
+parser.add_argument('sourc', help='Path and file source')
 
 
 def extract_length(input_file, offset):
@@ -72,19 +80,25 @@ def extract_bin(input_file, offset, db_size):
 
 
 def check_and_extract(input_file, input_file_size, offset):
+    
     # Get and check db size (it moves to offset+16 and offset+28)
     db_size = extract_length(input_file, offset)
     if db_size is not None and (offset + db_size) < input_file_size:
         # Check from offset+72 to offset+92 all bytes are 0x00
         # And check version (it moves to offset+96)
+        # If arg -e, extract sqlite
         if check_null_bytes(input_file, offset) and check_version(input_file, offset):
-            # Extract SQLite (it moves to offset)
-            extract_bin(input_file, offset, db_size)
+            print(f"SQLite at offset {offset} is OK!!!")
+            if sali:
+                # Extract SQLite (it moves to offset)
+                extract_bin(input_file, offset, db_size)
+
             # As it has been extracted return
             return
+
     # If not return before then it has not been extracted
-    print("Parece que la SQLite en posicion", offset, "está corrupta")
-    print("Compuébela con un editor hex")
+    print(f"SQLite at offset {offset} integrity fail!!!")
+
 
 
 def carving_file(filename):
@@ -118,13 +132,21 @@ def carving_file(filename):
             buffer_bytes = source_file.read(buffer_size)
 
 
-def main(*argv, **kargv):
-    carving_file(argv[0])
-
+def main():
+    carving_file(arch)
+    
 
 if __name__ == "__main__":
-        _script_argv = sys.argv[1:]
-        if len(_script_argv) == 0:
-                print("Usage: %s filename" % (sys.argv[0]))
+    argvs = parser.parse_args()
+    arch = argvs.sourc
+    sali = argvs.e
+    try:
+        os.stat(arch).st_size
+        print(f'Valid file {arch}\r\n {sali}')
+        if sali:
+            print("Las bases de datos encontradas se extraerán a un archivo")
         else:
-                main(*_script_argv)
+            print("Las sqlite encontradas sólo se mostrarán en pantalla.\r\nUse modificador -e para la extracción.\r\n")
+        main()
+    except IOError:
+        print(f'File \"{arch}\" does not existe, please retry')
