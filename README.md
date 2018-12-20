@@ -3,6 +3,19 @@
 Carving de binarios para obtener SQLite
 
 Este script en python es capaz de recorrer un binario dd en busca de archivos SQLite3 y extraerlos en archivos independientes.
+#####################################################################
+usage: carvBin2Lite.py [-h] [-e] sourc
+
+Find and extract SQLite files from binary forensics files
+
+positional arguments:
+    sourc         Path and file source
+
+optional arguments:
+    -h, --help    show this help message and exit
+    -e, -extract  Use to extract found files
+That's all folks!!! 
+#####################################################################
 
 "Versión 1 de este script"
 Es la versión básica. 
@@ -21,5 +34,5 @@ Muestra información de los offset de donde se ha encontrado la cabecera del arc
 MEJORAS A REALIZAR
 
 - Obtención del hash mientras extrae los archivos.
-- Lectura multihilo. He pensado en 2 hilos, uno que lea los bytes pares y otro los impares. Creo que más de 2 hilos buscando la cabecera no funcionaría.
+
 
