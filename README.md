@@ -31,7 +31,8 @@ That's all folks!!!
 - Comprueba que el archivo source exista.
 - Introducido argumentos.
 - Comprueba el md5 del source, utilizando el parametro '-hc' se puede seleccionar el hash a obtener (md5, sha256, sha512) y como segundo argumento de '-hc' se puede utilizar un hash que tengamos para comprobar integridad.
-- Presenta los sqlite encontrados en pantalla, sólo los extrae al usar el argumento '-e' junto a un tipo de hash (md5, sha256, sha512). "De momento no calcula el hash del archivo extraído".
+- Presenta los sqlite encontrados en pantalla, sólo los extrae al usar el argumento '-e' junto a un tipo de hash (md5, sha256, sha512).
+INFORME NO DISPONIBLE. Usar redireccionamiento: "carvBin2Lite.py <sourc> -e md5 > informe.txt"
 
 
 
