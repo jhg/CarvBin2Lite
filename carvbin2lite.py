@@ -4,18 +4,60 @@
 # No confundir con obtener datos borrados dentro de la bbdd
 # 
 
-from io import DEFAULT_BUFFER_SIZE
-
 import sys, os
+import hashlib
 
 from argparse import ArgumentParser
+from io import DEFAULT_BUFFER_SIZE
 
 parser = ArgumentParser(description="Find and extract SQLite files from binary forensics files",
                          epilog='That\'s all folks!!!')
-parser.add_argument('-e', '-extract', action='store_true',
-                    default='', help='Use to extract found files')
+parser.add_argument('-e', '-extract', choices=['md5', 'sha256', 'sha512'],
+                    default='', help='Use \"-e\" to extract found files with hash type \"md5\", \"sha256\" or \"sha512\"')
 parser.add_argument('sourc', help='Path and file source')
+parser.add_argument('-hc', '-hashcrypt', default='md5', nargs='*', 
+                    help='Obtiene el hash del binario fuente y lo compara con uno dado si es pasado como argumento.\
+                    Si no se pasa el argumento, calcula el hash md5 del archivo. \
+                    Example: \"-hc/-hashcrypt \{md5(default)|sha256|sha512\} <hash_model>\"')
 
+
+def hashcalc():
+    #calculo del hash según argumentos pasados
+    ####meter buffer de lectura###
+    buffer_size = max(DEFAULT_BUFFER_SIZE, 134217728)
+    if argvs.hc[0] == 'sha256':
+        leido = hashlib.sha256()
+    elif argvs.hc[0] == 'sha512':
+        leido = hashlib.sha512()
+    else:
+        leido = hashlib.md5()
+        
+    with open(argvs.sourc, "rb", buffering=buffer_size) as afile:
+        buf = afile.read(buffer_size)
+        while len(buf)>0:
+            leido.update(buf)
+            buf = afile.read(buffer_size)
+
+    if type(argvs.hc) is list:
+        print(f'Obtenido {argvs.hc[0]}:{leido.hexdigest()} del archivo {argvs.sourc}')
+       
+        if len(argvs.hc) > 1:
+            comp = str(argvs.hc[1]) == str(leido.hexdigest())
+            print(f'Comprobando el hash {argvs.hc[1]} del archivo pasado')
+            if comp and argvs.hc[1]:
+                print('Hash comprobado correcto')
+                return True
+            else:
+                print(f'Hash obtenido {leido.hexdigest()} no conincide con pasado por argumento {argvs.hc[1]}\
+, por favor, compuebelo o deje en blanco.')
+                return False
+        else:
+            return True
+    else:
+        print(f'Obtenido md5:{leido.hexdigest()} del archivo {argvs.sourc}')
+        return True
+        
+ 
 
 def extract_length(input_file, offset):
     """Get SQLite length and check it"""
@@ -89,7 +131,7 @@ def check_and_extract(input_file, input_file_size, offset):
         # If arg -e, extract sqlite
         if check_null_bytes(input_file, offset) and check_version(input_file, offset):
             print(f"SQLite at offset {offset} is OK!!!")
-            if sali:
+            if argvs.e:
                 # Extract SQLite (it moves to offset)
                 extract_bin(input_file, offset, db_size)
 
@@ -133,20 +175,31 @@ def carving_file(filename):
 
 
 def main():
-    carving_file(arch)
+    #comprobamos el hash del source y si falla, salimos del programa
+    print(f'Hashing {argvs.sourc}.\nPlease wait...')
+    compro = hashcalc()
+    if compro:
+        print("\r\nProcediento a buscar los datos......\nPor favor, espere.\r\n\r\n")
+    else:
+        print("Compruebe los datos del hash y vuelva a intentarlo")
+        return
+    
+    if argvs.e:
+        print(f'Extraeremos los archivos obteniendo el hash {argvs.e}')
+        
+    carving_file(argvs.sourc)
     
 
 if __name__ == "__main__":
     argvs = parser.parse_args()
-    arch = argvs.sourc
-    sali = argvs.e
+
     try:
-        os.stat(arch).st_size
-        print(f'Valid file {arch}\r\n {sali}')
-        if sali:
+        os.stat(argvs.sourc).st_size
+        print(f'Valid file {argvs.sourc}\r\n {argvs.e}')
+        if argvs.e:
             print("Las bases de datos encontradas se extraerán a un archivo")
         else:
             print("Las sqlite encontradas sólo se mostrarán en pantalla.\r\nUse modificador -e para la extracción.\r\n")
         main()
     except IOError:
-        print(f'File \"{arch}\" does not existe, please retry')
+        print(f'File \"{argvs.sourc}\" does not existe, please retry')
