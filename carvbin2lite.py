@@ -5,15 +5,15 @@
 # 
 
 import sys, os
-import hashlib
+import hashlib, datetime
 
 from argparse import ArgumentParser
 from io import DEFAULT_BUFFER_SIZE
 
 parser = ArgumentParser(description="Find and extract SQLite files from binary forensics files",
                          epilog='That\'s all folks!!!')
-parser.add_argument('-e', '-extract', choices=['md5', 'sha256', 'sha512'],
-                    default='', help='Use \"-e\" to extract found files with hash type \"md5\", \"sha256\" or \"sha512\"')
+parser.add_argument('-e', '-extract', default='', choices=['md5', 'sha256', 'sha512'],
+                    help='Use \"-e\" to extract found files with hash type \"md5\", \"sha256\" or \"sha512\"')
 parser.add_argument('sourc', help='Path and file source')
 parser.add_argument('-hc', '-hashcrypt', default='md5', nargs='*', 
                     help='Obtiene el hash del binario fuente y lo compara con uno dado si es pasado como argumento.\
@@ -106,9 +106,17 @@ def check_version(input_file, offset):
 
 def extract_bin(input_file, offset, db_size):
     """Extract SQLite file with offset and size"""
+    leido=''
     print(f"Extracting offset {offset} size {db_size}")
     db_file_name = str(offset) + '.db'
     buffer_size = min(db_size, DEFAULT_BUFFER_SIZE)
+    if argvs.e == 'sha256':
+        leido = hashlib.sha256()
+    elif argvs.e == 'sha512':
+        leido = hashlib.sha512()
+    else:
+        leido = hashlib.md5()
+        
     # Open file where to copy SQLite file
     with open(db_file_name, "wb", buffering=buffer_size) as db_file:
         # Move to offset and start extraction
@@ -116,9 +124,10 @@ def extract_bin(input_file, offset, db_size):
         remain_to_copy = db_size
         while remain_to_copy > 0:
             buffer_bytes = input_file.read(min(buffer_size, remain_to_copy))
+            leido.update(buffer_bytes)
             db_file.write(buffer_bytes)
             remain_to_copy = remain_to_copy - len(buffer_bytes)
-        print(f"SQLite {db_file_name} extraída satisfactoriamente, creo ;)")
+        print(f"SQLite {db_file_name} extraída satisfactoriamente, con {argvs.e}:{leido.hexdigest()}")
 
 
 def check_and_extract(input_file, input_file_size, offset):
@@ -150,7 +159,7 @@ def carving_file(filename):
         # TODO: this block and child blocks need refactor
         input_file_size = source_file.seek(0,2)
         source_file.seek(0)
-        print("Longitud de archivo", input_file_size)  # depuracion
+        print(f'Longitud de archivo {argvs.sourc}: {input_file_size} bytes\r\n- - - - - - - - - -\n')  # depuracion
         buffer_bytes = source_file.read(buffer_size)
         while len(buffer_bytes) > 15:
             next_buffer_offset = source_file.tell()
@@ -179,13 +188,14 @@ def main():
     print(f'Hashing {argvs.sourc}.\nPlease wait...')
     compro = hashcalc()
     if compro:
-        print("\r\nProcediento a buscar los datos......\nPor favor, espere.\r\n\r\n")
+        print("\r\nProcediento a buscar los datos......\nPor favor, espere.\r\n")
     else:
         print("Compruebe los datos del hash y vuelva a intentarlo")
         return
+
     
     if argvs.e:
-        print(f'Extraeremos los archivos obteniendo el hash {argvs.e}')
+        print(f'Extraeremos los archivos obteniendo el hash {argvs.e}\r\n')
         
     carving_file(argvs.sourc)
     
@@ -195,9 +205,9 @@ if __name__ == "__main__":
 
     try:
         os.stat(argvs.sourc).st_size
-        print(f'Valid file {argvs.sourc}\r\n {argvs.e}')
+        print(f'Valid file {argvs.sourc}\r\n')
         if argvs.e:
-            print("Las bases de datos encontradas se extraerán a un archivo")
+            print(f'Las bases de datos encontradas se extraerán a un archivo calculando el hash {argvs.e}\r\n')
         else:
             print("Las sqlite encontradas sólo se mostrarán en pantalla.\r\nUse modificador -e para la extracción.\r\n")
         main()
