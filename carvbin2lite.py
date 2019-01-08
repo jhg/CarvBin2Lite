@@ -19,9 +19,43 @@ parser.add_argument('-hc', '-hashcrypt', default='md5', nargs='*',
                     help='Obtiene el hash del binario fuente y lo compara con uno dado si es pasado como argumento.\
                     Si no se pasa el argumento, calcula el hash md5 del archivo. \
                     Example: \"-hc/-hashcrypt \{md5(default)|sha256|sha512\} <hash_model>\"')
+global arch_inf
+global non_bmp_map
+
+
+def hc_inf():
+    hc_inf = hashlib.sha256()
+    ar_inf = open("informe.txt", "rb")
+    buf = ar_inf.read()
+    hc_inf.update(buf)
+    ar_inf.close()
+    ar_inf = open("informe.sha256.txt", "w+")
+    ar_inf.write(hc_inf.hexdigest())
+    ar_inf.close()
+    print('Generado \'.txt\' con hash sha256 del informe') 
+
+def abre_inf():
+        global arch_inf
+        global non_bmp_map
+        arch_inf = open("informe.txt", "w+", encoding='utf-8')
+        non_bmp_map = dict.fromkeys(range(0x10000, sys.maxunicode + 1), 0xfffd)
+        s3 = hashlib.sha256()
+        hini = str(datetime.datetime.now())
+        arch_inf.write("--- INICIO DE INFORME --- \n" + hini + "\r\n\r\n")
+        arch_inf.write("-- ARCHIVOS \'SQLite\' ENCONTRADOS:        \n\n")
+
+
+def cerrar_inf():
+        global arch_inf
+        hfin = str(datetime.datetime.now())
+        arch_inf.write(hfin+ "\n--- FIN DE INFORME ---")
+        arch_inf.close()
+        print("Informe generado")
+
 
 
 def hashcalc():
+    global arch_inf
     #calculo del hash según argumentos pasados
     ####meter buffer de lectura###
     buffer_size = max(DEFAULT_BUFFER_SIZE, 134217728)
@@ -46,10 +80,12 @@ def hashcalc():
             print(f'Comprobando el hash {argvs.hc[1]} del archivo pasado')
             if comp and argvs.hc[1]:
                 print('Hash comprobado correcto')
+                arch_inf.write(f'El archivo {argvs.sourc} ha lanzado un hash {argvs.hc[0]}:{leido.hexdigest()}.\n\n')
                 return True
             else:
                 print(f'Hash obtenido {leido.hexdigest()} no conincide con pasado por argumento {argvs.hc[1]}\
 , por favor, compuebelo o deje en blanco.')
+                arch_inf.write(f'La comprobación del hash {argvs.hc[0]} del archivo {argvs.sourc} ha causado error.\n\n')
                 return False
         else:
             return True
@@ -60,6 +96,7 @@ def hashcalc():
  
 
 def extract_length(input_file, offset):
+    global arch_inf
     """Get SQLite length and check it"""
     db_size = None
     # Comprobamos tamaño de pagina correcto 512-32768 o 65536
@@ -67,6 +104,7 @@ def extract_length(input_file, offset):
     page_size = int.from_bytes(input_file.read(2), 'big')
     if (page_size > 511 and page_size < 32769) or page_size == 1:
         print("SQLite page size value", page_size, "within the ranges")
+        arch_inf.write(f'SQLite page size value {page_size} within the ranges')
         # Set real size when page size is 1
         if page_size == 1:
             page_size = 65536
@@ -79,6 +117,7 @@ def extract_length(input_file, offset):
             print("DB page size:", page_size)
             print("DB pages:", total_pages)
             print("DB file size:", db_size)
+            arch_inf.write(f'DB page size: {page_size}\nDB pages: {total_pages}\nDB file size: {db_size}\n')
     return db_size
 
 
@@ -89,6 +128,7 @@ def check_null_bytes(input_file, offset):
 
 
 def check_version(input_file, offset):
+    global arch_inf
     """Check SQLite version"""
     version_is_correct = False
     input_file.seek(offset + 96)
@@ -100,11 +140,13 @@ def check_version(input_file, offset):
         )
     if version_components[0] == "3":
         print("SQLite version", ".".join(version_components))
+        arch_inf.write(f'SQLite version: {version_components}')
         version_is_correct = True
     return version_is_correct
 
 
 def extract_bin(input_file, offset, db_size):
+    global arch_inf
     """Extract SQLite file with offset and size"""
     leido=''
     print(f"Extracting offset {offset} size {db_size}")
@@ -128,10 +170,11 @@ def extract_bin(input_file, offset, db_size):
             db_file.write(buffer_bytes)
             remain_to_copy = remain_to_copy - len(buffer_bytes)
         print(f"SQLite {db_file_name} extraída satisfactoriamente, con {argvs.e}:{leido.hexdigest()}")
+        arch_inf.write(f"\nSQLite {db_file_name} extraída satisfactoriamente, con {argvs.e}:{leido.hexdigest()}\n")
 
 
 def check_and_extract(input_file, input_file_size, offset):
-    
+    global arch_inf
     # Get and check db size (it moves to offset+16 and offset+28)
     db_size = extract_length(input_file, offset)
     if db_size is not None and (offset + db_size) < input_file_size:
@@ -140,6 +183,7 @@ def check_and_extract(input_file, input_file_size, offset):
         # If arg -e, extract sqlite
         if check_null_bytes(input_file, offset) and check_version(input_file, offset):
             print(f"SQLite at offset {offset} is OK!!!")
+            arch_inf.write(f"\nSQLite at offset {offset} is OK!!!")
             if argvs.e:
                 # Extract SQLite (it moves to offset)
                 extract_bin(input_file, offset, db_size)
@@ -149,10 +193,12 @@ def check_and_extract(input_file, input_file_size, offset):
 
     # If not return before then it has not been extracted
     print(f"SQLite at offset {offset} integrity fail!!!")
+    arch_inf.write(f"SQLite at offset {offset} integrity fail!!!\n")
 
 
 
 def carving_file(filename):
+    global arch_inf
     sqlite_head = b"\x53\x51\x4c\x69\x74\x65\x20\x66\x6f\x72\x6d\x61\x74\x20\x33\x00"
     buffer_size = max(DEFAULT_BUFFER_SIZE, 134217728)
     with open(filename, "rb", buffering=buffer_size) as source_file:
@@ -175,8 +221,10 @@ def carving_file(filename):
                 sqlite_found_offset = source_file.tell() - buffer_size + sqlite_head_index
                 print("Sqlite found at ", sqlite_found_offset)
                 print("Comprobando integridad de la SQLite:")
+                arch_inf.write(f'Sqlite found at {sqlite_found_offset}\n')
                 check_and_extract(source_file, input_file_size, sqlite_found_offset)
                 print("------------------------")
+                arch_inf.write("\n----------------\n\n")
                 sqlite_head_index = buffer_bytes.find(sqlite_head, sqlite_head_index+1)
             # Continue reading next buffer
             source_file.seek(next_buffer_offset-len(sqlite_head)+1)
@@ -184,11 +232,14 @@ def carving_file(filename):
 
 
 def main():
+
+    abre_inf()
     #comprobamos el hash del source y si falla, salimos del programa
     print(f'Hashing {argvs.sourc}.\nPlease wait...')
     compro = hashcalc()
     if compro:
         print("\r\nProcediento a buscar los datos......\nPor favor, espere.\r\n")
+        
     else:
         print("Compruebe los datos del hash y vuelva a intentarlo")
         return
@@ -198,11 +249,12 @@ def main():
         print(f'Extraeremos los archivos obteniendo el hash {argvs.e}\r\n')
         
     carving_file(argvs.sourc)
-    
+    cerrar_inf()
+    hc_inf()
 
 if __name__ == "__main__":
     argvs = parser.parse_args()
-
+    
     try:
         os.stat(argvs.sourc).st_size
         print(f'Valid file {argvs.sourc}\r\n')
