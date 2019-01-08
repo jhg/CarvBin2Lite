@@ -1,4 +1,5 @@
 
+
 # CarvBin2Lite
 Carving de binarios para obtener SQLite
 
@@ -26,6 +27,10 @@ optional arguments:
 
 That's all folks!!!
 #####################################################################
+
+*** Version 3 ***
+- Genera informe de lo encontrado. Incluye offset encontrados, estado de integridad de la sqlite encontrada, hash seleccionado en argumentos en caso de extracción.
+- Genera txt con sha256 del informe generado.
 
 *** Versión 2 ***
 - Comprueba que el archivo source exista.
