@@ -1,11 +1,48 @@
 
+
 # CarvBin2Lite
 Carving de binarios para obtener SQLite
 
 Este script en python es capaz de recorrer un binario dd en busca de archivos SQLite3 y extraerlos en archivos independientes.
 
-"Versión 1 de este script"
-Es la versión básica. 
+#####################################################################
+usage: carvBin2Lite.py [-h] [-e {md5,sha256,sha512}] [-hc [HC [HC ...]]] sourc
+
+Find and extract SQLite files from binary forensics files
+
+positional arguments:
+  sourc                 Path and file source
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -e {md5,sha256,sha512}, -extract {md5,sha256,sha512}
+                        Use "-e" to extract found files with hash type "md5",
+                        "sha256" or "sha512"
+  -hc [HC [HC ...]], -hashcrypt [HC [HC ...]]
+                        Obtiene el hash del binario fuente y lo compara con
+                        uno dado si es pasado como argumento. Si no se pasa el
+                        argumento, calcula el hash md5 del archivo. Example:
+                        "-hc/-hashcrypt \{md5(default)|sha256|sha512\}
+                        <hash_model>"
+
+That's all folks!!!
+#####################################################################
+
+*** Version 3 ***
+- Genera informe de lo encontrado. Incluye offset encontrados, estado de integridad de la sqlite encontrada, hash seleccionado en argumentos en caso de extracción.
+- Genera txt con sha256 del informe generado.
+
+*** Versión 2 ***
+- Comprueba que el archivo source exista.
+- Introducido argumentos.
+- Comprueba el md5 del source, utilizando el parametro '-hc' se puede seleccionar el hash a obtener (md5, sha256, sha512) y como segundo argumento de '-hc' se puede utilizar un hash que tengamos para comprobar integridad.
+- Presenta los sqlite encontrados en pantalla, sólo los extrae al usar el argumento '-e' junto a un tipo de hash (md5, sha256, sha512).
+INFORME NO DISPONIBLE. Usar redireccionamiento: "carvBin2Lite.py <sourc> -e md5 > informe.txt"
+
+
+
+
+*** Version 1 ***
 Recorre el archivo buscando la cabecera de 16 bytes típica en un archivo SQLite3. Cuando lo encuentra cuenta con triple control de integridad:
 
 1.- Comprueba que el tamaño de leaf esté en los parámetros establecidos
@@ -21,5 +58,5 @@ Muestra información de los offset de donde se ha encontrado la cabecera del arc
 MEJORAS A REALIZAR
 
 - Obtención del hash mientras extrae los archivos.
-- Lectura multihilo. He pensado en 2 hilos, uno que lea los bytes pares y otro los impares. Creo que más de 2 hilos buscando la cabecera no funcionaría.
+- Creación de informe
 
